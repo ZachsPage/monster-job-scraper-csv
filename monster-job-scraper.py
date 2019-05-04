@@ -1,15 +1,10 @@
 import sys
 import signal
-import time
 import csv
 from bs4 import BeautifulSoup
-from bs4 import UnicodeDammit
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.common.action_chains import ActionChains
-
-# Constants
-DESCRIPTION_LOAD_TIME=2
+from job_result import JobResult
 
 # Opens Web Browser for script
 driver = None
@@ -42,16 +37,6 @@ def get_driver():
         driver.set_page_load_timeout(120)
         return driver
 
-#--- Function to: Check if HTML element existed, converts unicode, prints status, returns text ---
-def check_element_text(string, string_name):
-    if string:
-        print("Found New " + string_name)
-        return UnicodeDammit(string.text).unicode_markup.strip()
-    else:
-        string = "Failed Getting " + string_name
-        print(string)
-        return string
-
 #--- Function to: Scrap Monster search results ---
 def scrape_jobs(url, records_scraped):
     global driver
@@ -69,49 +54,15 @@ def scrape_jobs(url, records_scraped):
     with open('job_results.csv', 'w', newline='') as csvfile:
         
         job_writer = csv.writer(csvfile, delimiter=',')
-        job_writer.writerow(["Position", "Company", "Description", "Posting Link"])
+        job_writer.writerow(["Position", "Company", "Description", "Posting Link", "Location", "Posted"])
 
         for result in job_results:
             # Avoid Ad objects... will cause an exception
             if "featured-ad" not in result.get("class"):
-                result_summary = result.find("div", {"class": "summary"})
-                company = result_summary.find("div", {"class": "company"})
 
-                position_name = result_summary.find("h2")
-                position_name = check_element_text(position_name, "Position Name")
-
-                company_name = company.find("span", {"class": "name"})
-                company_name = check_element_text(company_name, "Company Name")
-
-                result_header = result_summary.find("header", {"class": "card-header"})
-                result_desc_link = result_header.find("a").get('href')
-                result_desc_link_element = driver.find_element_by_xpath('//a[@href="' + result_desc_link + '"]')
-
-                # Actions are not being cleared with action_clear(), so must remake object everytime
-                action = ActionChains(driver)
-                action.double_click(result_desc_link_element).perform()
-                driver.execute_script("arguments[0].scrollIntoView();", result_desc_link_element)
-                time.sleep(DESCRIPTION_LOAD_TIME)
-                del action
-                
-                # Must create refreshable soup since new JobDescription is not visible result's job description is clicked
-                refresh_soup = BeautifulSoup(driver.page_source, "html.parser")
-                job_description = refresh_soup.find("div", {"id": "JobDescription"})
-                job_description = check_element_text(job_description, "Job Description")
-                if job_description is "Failed Getting Job Description" :
-                    print(job_description + "... try increasing DESCRIPTION_LOAD_TIME")
-                del refresh_soup
-
-                try:
-                    job_writer.writerow([position_name, company_name, job_description, result_desc_link])
-                except UnicodeEncodeError:
-                    error = "An Error occured during csv write... Company's Job Description probably has weird character"
-                    print(error)
-                    job_writer.writerow([position_name, company_name, error, result_desc_link])
-                except:
-                    error = "An Error occured during csv write..."
-                    print(error)
-                    job_writer.writerow([error])
+                posting = JobResult(result, driver, job_writer)
+                posting.get_info()
+                posting.write_csv_info()
 
                 records_scraped = records_scraped + 1
                 print('Currently on search result: ' + str(records_scraped) + ', Finding Next Result...\n')
