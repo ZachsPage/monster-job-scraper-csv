@@ -2,6 +2,7 @@
 ## Description
 - The user can search for basic key words / location on Monster.com, then use that
 URL as the argument for monster-job-scraper.
+  - **IMPORTANT**: Pass url surrounded by quotes
 - The goal was to allow a user to search multiple posting for more specific terms.
 
 A CSV file (job_results.csv) is created with the Position, Company, Description, Link, Location, Time Posted.
