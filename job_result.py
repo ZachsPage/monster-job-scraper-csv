@@ -18,8 +18,10 @@ class JobResult:
     
     # --- --- --- ---
     def get_info(self):
-        self.get_scrollable_info()
-        self.get_job_preview_info()
+        if not self.get_scrollable_info():
+            return False
+        if not self.get_job_preview_info():
+            return False
 
     #--- Function to: Check if HTML element existed, converts unicode, prints status, returns text ---
     def check_element_text(self, string, string_name):
@@ -34,6 +36,9 @@ class JobResult:
     #--- Function to: Get info that is immediate available in the scrollable result container ---
     def get_scrollable_info(self):
         self.summary = self.result_element.find("div", {"class": "summary"})
+        if self.summary is None:
+            print( "Failed to get main summary element" )
+            return False
 
         name = self.summary.find("h2")
         self.name = self.check_element_text(name, "Position Name")
@@ -48,6 +53,7 @@ class JobResult:
         location = self.summary.find("div", {"class": "location"})
         location = location.find("span", {"class": "name"})
         self.location = self.check_element_text(location, "Position Location")
+        return True
 
     #--- Function to: Load the job postings description in Monsters side Job Preview container ---
     def click_job_link(self):
@@ -57,8 +63,8 @@ class JobResult:
 
         # Actions are not being cleared with action_clear(), so must remake object everytime
         action = ActionChains(self.driver)
-        action.double_click(desc_link_element).perform()
         self.driver.execute_script("arguments[0].scrollIntoView();", desc_link_element)
+        action.double_click(desc_link_element).perform()
         time.sleep(self.DESCRIPTION_LOAD_TIME)
 
     #--- Function to: Get the information from the job's preview 
@@ -69,7 +75,7 @@ class JobResult:
         refresh_soup = BeautifulSoup(self.driver.page_source, "html.parser")
         description = refresh_soup.find("div", {"id": "JobDescription"})
         self.description = self.check_element_text(description, "Job Description")
-        if description is "Failed Getting Job Description" :
+        if description == "Failed Getting Job Description" :
             print(description + "... try increasing DESCRIPTION_LOAD_TIME")
 
     # --- --- --- --- --- ---
@@ -77,10 +83,10 @@ class JobResult:
         try:
             self.csv_writer.writerow([self.name, self.company, self.description, self.link, self.location, self.time_posted])
         except UnicodeEncodeError:
-            error = "An Error occured during csv write... Company's Job Description probably has weird character"
+            error = "An Error occured with JobResult object... Company's Job Description probably has weird character"
             print(error)
             self.csv_writer.writerow([self.name, self.company, error, self.link, self.location, self.time_posted])
         except:
-            error = "An Error occured during csv write..."
+            error = "An Error occured with JobResult object, skipping posting..."
             print(error)
             self.csv_writer.writerow([error])
