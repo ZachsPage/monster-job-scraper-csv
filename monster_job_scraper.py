@@ -29,7 +29,7 @@ def get_driver():
     if driver is not None:
         return driver
     else:
-        # Run invisible browser
+        # Run invisible browser - can comment headless out to see scraping
         ff_options = Options()
         ff_options.headless = True
         driver = webdriver.Firefox( options=ff_options )
@@ -78,7 +78,7 @@ def scrape_jobs(url, records_scraped):
     search_results = soup.find("div", {"id": "SearchResults"})
     job_results = search_results.find_all("section", {"class": "card-content"})
 
-    with open('job_results.csv', 'w', newline='') as csvfile:
+    with open('scraped_job_results.csv', 'w', newline='') as csvfile:
         
         job_writer = csv.writer(csvfile, delimiter=',')
         job_writer.writerow(["Position", "Company", "Description", "Posting Link", "Location", "Posted"])
@@ -109,10 +109,14 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    records_scraped = scrape_jobs(url, records_scraped)
-    print(str(records_scraped) + " Records Scraped!")
+    try:
+        records_scraped = scrape_jobs(url, records_scraped)
+        print(str(records_scraped) + " Records Scraped!")
+    except KeyboardInterrupt:
+        print("Exiting due to keyboard interrupt")
 
     close_browser()
+    print("Shutting down")
 
 #--- Function to: Allow outside calls to main ---
 if __name__ == "__main__":

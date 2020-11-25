@@ -9,7 +9,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 class JobResult:
 
     # Constants
-    DESCRIPTION_LOAD_TIME=1
+    DESCRIPTION_LOAD_TIME = 1
 
     def __init__(self, result_element, web_driver, csv_writer):
         self.result_element = result_element
@@ -20,20 +20,36 @@ class JobResult:
     def get_info(self):
         if not self.get_scrollable_info():
             return False
+        self.click_job_link()
         if not self.get_job_preview_info():
             return False
 
     #--- Function to: Check if HTML element existed, converts unicode, prints status, returns text ---
-    def check_element_text(self, string, string_name):
-        if string:
-            print("Found New " + string_name)
-            return UnicodeDammit(string.text).unicode_markup.strip()
-        else:
-            string = "Failed Getting " + string_name
-            print(string)
-            return string
+    def check_element_text(self, element, text_desc):
+        if not element:
+            return "Failed getting " + text_desc + " element"
+        stripped_string = UnicodeDammit(element.text).unicode_markup.strip()
+        if not stripped_string:
+            error_string = "Failed Getting " + text_desc
+            print(error_string)
+            return error_string
+        print("Found New", text_desc)
+        return stripped_string
 
-    #--- Function to: Get info that is immediate available in the scrollable result container ---
+    #--- Function to: Check for / close an "expired job" pop-up, return True if expired ---
+    def avoid_expired_job(self, curr_soup):
+        expired_job_popup = curr_soup.find("div", {"id": "expired-job-alert"})
+        if not expired_job_popup:
+            return False
+        popup = self.driver.find_element_by_id("expired-job-alert")
+        close_popup_button = popup.find_element_by_xpath('.//button[@class="mux-close"]')
+        if not close_popup_button:
+            return False
+        action = ActionChains(self.driver)
+        action.click(close_popup_button).perform()
+        return True
+
+    #--- Function to: Get info that is immediately available in the scrollable result container ---
     def get_scrollable_info(self):
         self.summary = self.result_element.find("div", {"class": "summary"})
         if self.summary is None:
@@ -69,14 +85,20 @@ class JobResult:
 
     #--- Function to: Get the information from the job's preview 
     def get_job_preview_info(self):
-        self.click_job_link()
-
         # Must create refreshable soup since new Job Description is not visible until result's job description is clicked
         refresh_soup = BeautifulSoup(self.driver.page_source, "html.parser")
+
+        # Check for the "Job not available" pop-up, or it ruins us
+        if self.avoid_expired_job(refresh_soup):
+            self.description = "Expired Job Posting"
+            print(self.description)
+
+        # Get job description
         description = refresh_soup.find("div", {"id": "JobDescription"})
         self.description = self.check_element_text(description, "Job Description")
-        if description == "Failed Getting Job Description" :
-            print(description + "... try increasing DESCRIPTION_LOAD_TIME")
+        if self.description.startswith("Fail"):
+            self.description += " - try increasing DESCRIPTION_LOAD_TIME"
+            print(self.description)
 
     # --- --- --- --- --- ---
     def write_csv_info(self):
